@@ -25,7 +25,7 @@ public interface ProjectService {
 
     //[Feature][Rooms] 방 생성 + 생성 즉시 목록 반영 (POST /api/v1/rooms) #5
     /**
-     * Action: ProjectUser에 User를 등록함
+     * Action: ProjectUser에 User Admin으로 등록함
      * Input:
      *  - long userId
      *  - long projectId
@@ -39,10 +39,10 @@ public interface ProjectService {
      *  - <404>: 찾을수 없는 userId
      *  - <404>: 찾을수 없는 projectId
      */
-    Result AddProjectUser(long userId, long projectId);
+    Result AddProjectAdminUser(long userId, long projectId);
 
     /**
-     * Action: Project를 추가이후 ProjectUser에 자신을 Admin으로 등록
+     * Action: Project를 추가이후 AddProjectAdminUser를 호출해 ProjectUser에 자신을 Admin으로 등록
      * Input:
      *  - long ownerUserId
      *  - String projectName

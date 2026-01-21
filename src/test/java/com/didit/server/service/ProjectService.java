@@ -5,10 +5,12 @@ import com.didit.server.data.entity.ProjectUserEntity;
 import com.didit.server.data.entity.UserEntity;
 import com.didit.server.data.entity.enums.ProjectUserRole;
 import com.didit.server.data.entity.enums.ProjectUserStatus;
+import com.didit.server.data.repository.ProjectRepository;
 import com.didit.server.data.repository.ProjectUserRepository;
 import com.didit.server.data.repository.UserRepository;
 
 // TODO: 네 프로젝트 Result / ResultError 실제 패키지로 수정
+import com.didit.server.service.command.AddProjectCommand;
 import com.didit.server.service.service.impl.ProjectServiceImpl;
 import com.didit.server.share.result.Result;
 import com.didit.server.share.result.ResultError;
@@ -18,10 +20,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -38,6 +43,7 @@ class ProjectServiceImplTest {
 
     @Mock private UserRepository userRepository;
     @Mock private ProjectUserRepository projectUserRepository;
+    @Mock private ProjectRepository projectRepository;
 
     @InjectMocks private ProjectServiceImpl sut;
 
@@ -112,7 +118,7 @@ class ProjectServiceImplTest {
         assertFalse(result.getErrors().isEmpty());
         assertTrue(result.getValue().isEmpty()); // 실패면 value 없음 :contentReference[oaicite:10]{index=10}
 
-        ResultError err = result.getErrors().get(0);
+        ResultError err = result.getErrors().getFirst();
         assertEquals(404, err.getCode()); // code/status는 최우선 고정 :contentReference[oaicite:11]{index=11}
 
         // metadata까지 고정(가능하면) :contentReference[oaicite:12]{index=12}
@@ -128,6 +134,217 @@ class ProjectServiceImplTest {
 
         // 실패 케이스에서 부수효과 없음 검증(중요) :contentReference[oaicite:13]{index=13}
         verify(projectUserRepository, never()).findAllByUser_Id(anyLong());
+    }
+
+    // --------------------------
+    // AddProjectAdminUser(userId, projectId)
+    // --------------------------
+
+    @Test
+    @DisplayName("유저/프로젝트가 존재하면 ProjectUser를 ADMIN으로 추가하고 ok()를 반환한다")
+    void AddProjectAdminUser_userAndProjectExist_savesAdminProjectUser_returnsOk() {
+        // Given
+        long userId = 10L;
+        long projectId = 100L;
+
+        var user = aUser(userId);
+        var project = aProject(projectId, aUser(1L));
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(projectUserRepository.save(any(ProjectUserEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        // When
+        Result result = sut.AddProjectAdminUser(userId, projectId);
+
+        // Then
+        assertTrue(result.isSuccess());
+        assertTrue(result.getErrors().isEmpty());
+
+        ArgumentCaptor<ProjectUserEntity> captor = ArgumentCaptor.forClass(ProjectUserEntity.class);
+        verify(projectUserRepository, times(1)).save(captor.capture());
+
+        ProjectUserEntity saved = captor.getValue();
+        assertSame(user, saved.getUser());
+        assertSame(project, saved.getProject());
+        assertEquals(ProjectUserRole.ADMIN, saved.getRole());
+        assertEquals(ProjectUserStatus.ACTIVE, saved.getStatus());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 userId이면 fail(404)를 반환하고 저장하지 않는다")
+    void AddProjectAdminUser_userNotFound_returnsFail404_andNoSideEffect() {
+        // Given
+        long userId = 9999L;
+        long projectId = 100L;
+
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        // When
+        Result result = sut.AddProjectAdminUser(userId, projectId);
+
+        // Then
+        assertTrue(result.isFailure());
+        assertFalse(result.getErrors().isEmpty());
+        assertTrue(result.getValue().isEmpty());
+
+        var err = (ResultError)result.getErrors().getFirst();
+        assertEquals(404, err.getCode());
+
+        verify(projectRepository, never()).findById(anyLong());
+        verify(projectUserRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 projectId이면 fail(404)를 반환하고 저장하지 않는다")
+    void AddProjectAdminUser_projectNotFound_returnsFail404_andNoSideEffect() {
+        // Given
+        long userId = 10L;
+        long projectId = 9999L;
+
+        var user = aUser(userId);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.empty());
+
+        // When
+        Result result = sut.AddProjectAdminUser(userId, projectId);
+
+        // Then
+        assertTrue(result.isFailure());
+        assertFalse(result.getErrors().isEmpty());
+        assertTrue(result.getValue().isEmpty());
+
+        var err = (ResultError)result.getErrors().getFirst();
+        assertEquals(404, err.getCode());
+
+        verify(projectUserRepository, never()).save(any());
+    }
+
+    // --------------------------
+    // AddProject(AddProjectCommand cmd)
+    // --------------------------
+
+    @Test
+    @DisplayName("owner가 존재하고 repoFullName이 중복이 아니면 Project 생성 후 owner를 ADMIN으로 등록하고 ok()를 반환한다")
+    void AddProject_ownerExistsAndRepoNotDuplicated_createsProjectAndRegistersAdmin_returnsOk() {
+        // Given
+        long ownerUserId = 10L;
+        String projectName = "demo";
+        String repoFullName = "org/repo";
+
+        var owner = aUser(ownerUserId);
+        AddProjectCommand cmd = new AddProjectCommand(ownerUserId, projectName, repoFullName);
+
+        when(userRepository.findById(ownerUserId)).thenReturn(Optional.of(owner));
+
+        // 구현이 existsByRepoFullName을 쓰면 이 라인 사용
+        when(projectRepository.existsByRepoFullName(repoFullName)).thenReturn(false);
+
+        // 구현이 findByRepoFullName을 쓰면 위 라인 대신 아래 사용
+        // when(projectRepository.findByRepoFullName(repoFullName)).thenReturn(Optional.empty());
+
+        Map<Long, ProjectEntity> store = new HashMap<>();
+
+        when(projectRepository.save(any(ProjectEntity.class)))
+                .thenAnswer(inv -> {
+                    ProjectEntity p = inv.getArgument(0);
+                    ReflectionTestUtils.setField(p, "id", 123L);
+                    store.put(123L, p);
+                    return p;
+                });
+
+        when(projectRepository.findById(anyLong()))
+                .thenAnswer(inv -> Optional.ofNullable(store.get(inv.getArgument(0))));
+        when(projectUserRepository.save(any(ProjectUserEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        // When
+        Result result = sut.AddProject(cmd);
+
+        // Then
+        assertTrue(result.isSuccess());
+        assertTrue(result.getErrors().isEmpty());
+
+        ArgumentCaptor<ProjectEntity> projectCaptor = ArgumentCaptor.forClass(ProjectEntity.class);
+        verify(projectRepository, times(1)).save(projectCaptor.capture());
+        ProjectEntity createdProject = projectCaptor.getValue();
+
+        assertEquals(projectName, createdProject.getName());
+        assertSame(owner, createdProject.getOwner());
+        assertEquals(repoFullName, createdProject.getRepoFullName());
+
+        ArgumentCaptor<ProjectUserEntity> puCaptor = ArgumentCaptor.forClass(ProjectUserEntity.class);
+        verify(projectUserRepository, times(1)).save(puCaptor.capture());
+        ProjectUserEntity createdPu = puCaptor.getValue();
+
+        assertSame(owner, createdPu.getUser());
+        assertSame(createdProject, createdPu.getProject());
+        assertEquals(ProjectUserRole.ADMIN, createdPu.getRole());
+        assertEquals(ProjectUserStatus.ACTIVE, createdPu.getStatus());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 ownerUserId이면 fail(404)를 반환하고 아무것도 저장하지 않는다")
+    void AddProject_ownerNotFound_returnsFail404_andNoSideEffect() {
+        // Given
+        long ownerUserId = 9999L;
+        AddProjectCommand cmd = new AddProjectCommand(ownerUserId, "demo", "org/repo");
+
+        when(userRepository.findById(ownerUserId)).thenReturn(Optional.empty());
+
+        // When
+        Result result = sut.AddProject(cmd);
+
+        // Then
+        assertTrue(result.isFailure());
+        assertFalse(result.getErrors().isEmpty());
+        assertTrue(result.getValue().isEmpty());
+
+        var err = (ResultError)result.getErrors().get(0);
+        assertEquals(404, err.getCode());
+
+        verify(projectRepository, never()).save(any());
+        verify(projectUserRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("repoFullName이 중복이면 ConflictError(407)를 반환하고 저장하지 않는다")
+    void AddProject_duplicateRepoFullName_returnsConflict407_andNoSideEffect() {
+        // Given
+        long ownerUserId = 10L;
+        String repoFullName = "org/repo";
+
+        var owner = aUser(ownerUserId);
+        AddProjectCommand cmd = new AddProjectCommand(ownerUserId, "demo", repoFullName);
+
+        when(userRepository.findById(ownerUserId)).thenReturn(Optional.of(owner));
+
+        // 구현이 existsByRepoFullName을 쓰면 이 라인 사용
+        when(projectRepository.existsByRepoFullName(repoFullName)).thenReturn(true);
+
+        // 구현이 findByRepoFullName을 쓰면 위 라인 대신 아래 사용
+        // when(projectRepository.findByRepoFullName(repoFullName))
+        //        .thenReturn(Optional.of(aProject(1L, owner)));
+
+        // When
+        Result result = sut.AddProject(cmd);
+
+        // Then
+        assertTrue(result.isFailure());
+        assertFalse(result.getErrors().isEmpty());
+        assertTrue(result.getValue().isEmpty());
+
+        var err = (ResultError) result.getErrors().getFirst();
+
+        // ✅ 네 ConflictError가 407로 고정
+        assertEquals(407, err.getCode());
+        assertNotNull(err.getMessage());
+        assertFalse(err.getMessage().isBlank());
+
+        verify(projectRepository, never()).save(any());
+        verify(projectUserRepository, never()).save(any());
     }
 
     // -----------------------
