@@ -1,4 +1,4 @@
--- v1__init.sql
+-- V1__init.sql
 -- MySQL 8.x / InnoDB / utf8mb4
 -- created_at, updated_at => TIMESTAMP 로 통일
 
