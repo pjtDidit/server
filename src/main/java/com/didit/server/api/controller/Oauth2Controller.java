@@ -1,15 +1,16 @@
 package com.didit.server.api.controller;
 
 import com.didit.server.api.security.CustomOAuth2User;
+import com.didit.server.share.result.Result;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
@@ -23,9 +24,11 @@ public class Oauth2Controller {
 
     // 세션 유지 확인용 테스트 엔드포인트
     @GetMapping("/v1/user/me")
-    public ResponseEntity<?> me(@AuthenticationPrincipal CustomOAuth2User user) {
-        if (user == null) return ResponseEntity.status(401).build();
-        return ResponseEntity.ok(user.getAttributes());
+    public Result<Map<String, Object>> hasAuth(@AuthenticationPrincipal CustomOAuth2User user) {
+        if (user == null) {
+            Result.fail(401, "인증되지 않은 사용자입니다.").throwIfFailure();
+        }
+        return Result.ok(user.getAttributes());
     }
 
 }

@@ -2,6 +2,7 @@ package com.didit.server.api.security;
 
 import com.didit.server.data.entity.UserEntity;
 import com.didit.server.data.repository.UserRepository;
+import com.didit.server.service.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
@@ -18,7 +19,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
-    private final UserRepository userRepository;
+    private final UserService userService;
 
     @Override
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
@@ -34,23 +35,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         String name = attributes.get("name").toString();
         String avatarUrl = attributes.get("avatar_url").toString();
 
-        UserEntity user = userRepository.findByGithubId(githubId).orElse(null);
-
-        if(user == null) {
-            user = UserEntity.builder()
-                    .githubId(githubId)
-                    .githubLogin(login)
-                    .name(name)
-                    .avatarUrl(avatarUrl)
-                    .createdAt(LocalDateTime.now())
-                    .lastLoginAt(LocalDateTime.now())
-                    .build();
-        }else{
-            user.setAvatarUrl(avatarUrl);
-            user.setName(name);
-        }
-
-        UserEntity newUser = userRepository.save(user);
+        UserEntity newUser = userService.joinOrUpdate(githubId, login, name, avatarUrl).getOrThrow();
 
         return new CustomOAuth2User(oAuth2User, newUser.getId());
     }
