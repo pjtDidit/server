@@ -5,10 +5,10 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.SQLRestriction;
-import org.hibernate.annotations.UpdateTimestamp;
-import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.*;
+import org.hibernate.generator.EventType;
+import org.hibernate.type.SqlTypes;
+import org.hibernate.type.descriptor.jdbc.TinyIntJdbcType;
 
 import java.time.LocalDateTime;
 
@@ -16,10 +16,8 @@ import java.time.LocalDateTime;
 @Table(
         name = "projects",
         indexes = {
-                @Index(name = "idx_projects_repo_id", columnList = "repo_id")
-        },
-        uniqueConstraints = {
-                @UniqueConstraint(name = "uk_projects_repo_full_name", columnNames = "repo_full_name")
+                @Index(name = "idx_projects_repo_id", columnList = "repo_id"),
+                @Index(name = "uq_projects_repo_active", columnList = "repo_full_name, active_key", unique = true)
         }
 )
 @SQLDelete(sql = "UPDATE projects SET deleted_at = NOW() WHERE id = ?")
@@ -54,6 +52,11 @@ public class ProjectEntity {
 
     @Column(name = "thumbnail_url", length = 500)
     private String thumbnailUrl;
+
+    @Generated(event = EventType.UPDATE)
+    @Column(name = "active_key", insertable = false, updatable = false)
+    @JdbcTypeCode(SqlTypes.TINYINT)
+    private Integer activeKey;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

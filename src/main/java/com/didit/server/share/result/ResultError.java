@@ -1,5 +1,6 @@
 package com.didit.server.share.result;
 
+import com.didit.server.api.response.ErrorResponse;
 import org.springframework.http.HttpStatus;
 
 import java.util.Map;
@@ -22,5 +23,9 @@ public interface ResultError {
 
     default HttpStatus getStatus() {
         return HttpStatus.valueOf(getCode());
+    }
+
+    default ErrorResponse getResponse() {
+        return new ErrorResponse(getStatus(), getMessage());
     }
 }
