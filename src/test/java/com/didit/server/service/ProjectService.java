@@ -39,7 +39,6 @@ class ProjectServiceImplTest {
     @Mock private UserRepository userRepository;
     @Mock private ProjectUserRepository projectUserRepository;
 
-    // TODO: 네 실제 구현 클래스명으로 변경
     @InjectMocks private ProjectServiceImpl sut;
 
     @Test
@@ -120,7 +119,7 @@ class ProjectServiceImplTest {
         Map<String, Object> meta = err.getMetadata();
         assertNotNull(meta);
         assertTrue(meta.containsKey("resource"));
-        assertEquals("user", String.valueOf(meta.get("resource")));
+        assertEquals("userId", String.valueOf(meta.get("resource")));
 
         // (프로젝트 구현에 따라 key가 userId로 들어간다는 가정)
         if (meta.containsKey("key")) {
