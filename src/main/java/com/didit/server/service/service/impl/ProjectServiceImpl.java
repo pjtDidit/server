@@ -4,6 +4,7 @@ import com.didit.server.data.entity.ProjectEntity;
 import com.didit.server.data.entity.ProjectUserEntity;
 import com.didit.server.data.repository.ProjectUserRepository;
 import com.didit.server.data.repository.UserRepository;
+import com.didit.server.service.command.AddProjectCommand;
 import com.didit.server.service.service.ProjectService;
 import com.didit.server.share.result.Result;
 import com.didit.server.share.result.impl.NotFoundError;
@@ -31,5 +32,15 @@ public class ProjectServiceImpl implements ProjectService {
         var projectUsers = _ProjectUserRepository.findAllByUser_Id(userId);
         var projects = projectUsers.stream().map(ProjectUserEntity::getProject).toList();
         return Result.ok(projects);
+    }
+
+    @Override
+    public Result AddProjectUser(long userId, long projectId) {
+        return null;
+    }
+
+    @Override
+    public Result AddProject(AddProjectCommand cmd) {
+        return null;
     }
 }
