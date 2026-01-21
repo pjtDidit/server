@@ -92,4 +92,32 @@ class UserServiceImplTest {
         assertThat(result.getSingleErrorOrThrow().getCode()).isEqualTo(500);
         assertThat(result.getSingleErrorOrThrow().getMessage()).contains("Internal Server Error");
     }
+
+    @Test
+    @DisplayName("기존 사용자의 GitHub 로그인 아이디(username)가 변경된 경우, 로그인 시 새 아이디로 업데이트한다.")
+    void joinOrUpdate_UpdateGithubLogin_WhenExistingUserChangesUsername() {
+        // Given
+        Long githubId = 12345L;
+        String oldLogin = "old_id";
+        String newLogin = "new_id"; // 변경된 아이디
+
+        UserEntity existingUser = UserEntity.builder()
+                .githubId(githubId)
+                .githubLogin(oldLogin)
+                .name("User")
+                .avatarUrl("url")
+                .build();
+
+        given(userRepository.findByGithubId(githubId)).willReturn(Optional.of(existingUser));
+        given(userRepository.save(any(UserEntity.class))).willReturn(existingUser);
+
+        // When
+        Result<UserEntity> result = userService.joinOrUpdate(githubId, newLogin, "User", "url");
+
+        // Then
+        assertThat(result.isSuccess()).isTrue();
+        // 기존 유저의 githubLogin이 newLogin으로 변경되었는지 검증
+        assertThat(existingUser.getGithubLogin()).isEqualTo(newLogin);
+        verify(userRepository).save(existingUser);
+    }
 }

@@ -31,6 +31,7 @@ public class UserServiceImpl implements UserService {
                         .lastLoginAt(LocalDateTime.now())
                         .build();
             } else {
+                user.setGithubLogin(login);
                 user.setAvatarUrl(avatarUrl);
                 user.setName(name);
                 user.setLastLoginAt(LocalDateTime.now());

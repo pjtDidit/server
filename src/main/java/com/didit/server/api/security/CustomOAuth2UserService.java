@@ -30,7 +30,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         // 2. 필요한 정보 추출하기
         Long githubId = ((Number) attributes.get("id")).longValue();
         String login = attributes.get("login").toString();
-        String name = attributes.get("name").toString();
+        String name = attributes.get("name") != null ? attributes.get("name").toString() : login;
         String avatarUrl = attributes.get("avatar_url").toString();
 
         UserEntity newUser = userService.joinOrUpdate(githubId, login, name, avatarUrl).getOrThrow();
