@@ -144,7 +144,12 @@ public class ProjectServiceImpl implements ProjectService {
             return Result.fail(new NotFoundError("projectId", projectId));
         }
 
-        var projectUser = ProjectUserEntity.builder()
+        var projectUser = _ProjectUserRepository.findByProject_IdAndUser_Id(projectId, userId);
+        if(projectUser.isPresent()){
+            return Result.fail(new ConflictError("이미 존재하는 유저입니다."));
+        }
+
+        var projectUserEntity = ProjectUserEntity.builder()
                 .project(project.get())
                 .user(user.get())
                 .role(ProjectUserRole.MEMBER)
@@ -152,7 +157,7 @@ public class ProjectServiceImpl implements ProjectService {
                 .joinedAt(LocalDateTime.now())
                 .build();
 
-        _ProjectUserRepository.save(projectUser);
+        _ProjectUserRepository.save(projectUserEntity);
 
         return Result.ok();
     }
