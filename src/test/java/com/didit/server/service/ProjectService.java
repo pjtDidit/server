@@ -1,10 +1,12 @@
 package com.didit.server.service; // ✅ 운영 코드 패키지 구조 미러링 권장 :contentReference[oaicite:1]{index=1}
 
 import com.didit.server.data.entity.ProjectEntity;
+import com.didit.server.data.entity.ProjectInviteEntity;
 import com.didit.server.data.entity.ProjectUserEntity;
 import com.didit.server.data.entity.UserEntity;
 import com.didit.server.data.entity.enums.ProjectUserRole;
 import com.didit.server.data.entity.enums.ProjectUserStatus;
+import com.didit.server.data.repository.ProjectInviteRepository;
 import com.didit.server.data.repository.ProjectRepository;
 import com.didit.server.data.repository.ProjectUserRepository;
 import com.didit.server.data.repository.UserRepository;
@@ -26,10 +28,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.lang.reflect.Field;
+import java.time.LocalDateTime;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -44,6 +45,7 @@ class ProjectServiceImplTest {
     @Mock private UserRepository userRepository;
     @Mock private ProjectUserRepository projectUserRepository;
     @Mock private ProjectRepository projectRepository;
+    @Mock private ProjectInviteRepository projectInviteRepository;
 
     @InjectMocks private ProjectServiceImpl sut;
 
@@ -347,6 +349,303 @@ class ProjectServiceImplTest {
         verify(projectUserRepository, never()).save(any());
     }
 
+
+    // =========================================================
+    // AddInviteCode(userId, projectId)
+    // =========================================================
+    @Test
+    @DisplayName("ADMIN 유저면 expiresAt을 포함해 초대코드를 생성하고 ok(UUID)를 반환한다")
+    void AddInviteCode_adminUser_returnsOkUuid_andSavesInviteWithExpiresAt() {
+        // Given
+        long userId = 10L;
+        long projectId = 100L;
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(1);
+
+        var user = aUser(userId);
+        var project = aProject(projectId, aUser(1L));
+        var adminPU = aProjectUser(user, project, ProjectUserRole.ADMIN);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(projectUserRepository.findByProject_IdAndUser_Id(projectId, userId))
+                .thenReturn(Optional.of(adminPU));
+
+        when(projectInviteRepository.save(any(ProjectInviteEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        // When
+        Result<UUID> result = sut.AddInviteCode(userId, projectId, expiresAt);
+
+        // Then
+        assertTrue(result.isSuccess(), () -> "errors=" + result.getErrors());
+        assertTrue(result.getErrors().isEmpty());
+
+        UUID returned = result.getValue().orElseThrow();
+
+        ArgumentCaptor<ProjectInviteEntity> captor = ArgumentCaptor.forClass(ProjectInviteEntity.class);
+        verify(projectInviteRepository, times(1)).save(captor.capture());
+        ProjectInviteEntity savedInvite = captor.getValue();
+        UUID savedUuid = toUuid(readField(savedInvite, "id"));
+
+        assertEquals(savedUuid, returned);
+        assertSame(project, savedInvite.getProject());
+        assertEquals(expiresAt, savedInvite.getExpiresAt());
+    }
+
+
+    @Test
+    @DisplayName("존재하지 않는 userId이면 fail(404 NotFoundError: resource=userId, key=userId) 반환")
+    void AddInviteCode_userNotFound_returns404NotFound() {
+        // Given
+        long userId = 9999L;
+        long projectId = 100L;
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(1);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        // When
+        Result<UUID> result = sut.AddInviteCode(userId, projectId, expiresAt);
+
+        // Then
+        assertNotFound(result, "userId", userId);
+        verify(projectRepository, never()).findById(anyLong());
+        verify(projectInviteRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 projectId이면 fail(404 NotFoundError: resource=projectId, key=projectId) 반환")
+    void AddInviteCode_projectNotFound_returns404NotFound() {
+        // Given
+        long userId = 10L;
+        long projectId = 9999L;
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(1);
+
+        var user = aUser(userId);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.empty());
+
+        // When
+        Result<UUID> result = sut.AddInviteCode(userId, projectId, expiresAt);
+
+        // Then
+        assertNotFound(result, "projectId", projectId);
+        verify(projectInviteRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("ADMIN이 아니면 fail(403 ForbiddenError) 반환하고 저장하지 않는다")
+    void AddInviteCode_notAdmin_returns403Forbidden() {
+        // Given
+        long userId = 10L;
+        long projectId = 100L;
+        LocalDateTime expiresAt = LocalDateTime.now().plusDays(1);
+
+        var user = aUser(userId);
+        var project = aProject(projectId, aUser(1L));
+
+        var memberPU = aProjectUser(user, project, ProjectUserRole.MEMBER);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(projectUserRepository.findByProject_IdAndUser_Id(projectId, userId))
+                .thenReturn(Optional.of(memberPU));
+
+        // When
+        Result<UUID> result = sut.AddInviteCode(userId, projectId, expiresAt);
+
+        // Then
+        assertTrue(result.isFailure(), () -> "value=" + result.getValue() + ", errors=" + result.getErrors());
+        assertFalse(result.getErrors().isEmpty());
+        assertTrue(result.getValue().isEmpty());
+
+        var err = result.getErrors().get(0);
+        assertEquals(403, err.getCode()); // ForbiddenError
+        assertNotNull(err.getMessage());
+
+        verify(projectInviteRepository, never()).save(any());
+    }
+
+    // =========================================================
+    // FindProjectByInviteCode(inviteCode)
+    // =========================================================
+
+    @Test
+    @DisplayName("존재하는 inviteCode이면 ok(ProjectEntity)를 반환한다")
+    void FindProjectByInviteCode_exists_returnsOkProject() {
+        // Given
+        UUID inviteCode = UUID.randomUUID();
+
+        var owner = aUser(1L);
+        var project = aProject(100L, owner);
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(10);
+
+        var invite = aInvite(inviteCode, project, expiresAt);
+
+        // ProjectInviteRepository 가 String id면 보통 toString()으로 조회
+        when(projectInviteRepository.findById(inviteCode.toString()))
+                .thenReturn(Optional.of(invite));
+
+        // When
+        Result<ProjectEntity> result = sut.FindProjectByInviteCode(inviteCode);
+
+        // Then
+        assertTrue(result.isSuccess(), () -> "errors=" + result.getErrors());
+        assertTrue(result.getErrors().isEmpty());
+
+        ProjectEntity found = result.getValue().orElseThrow();
+        assertSame(project, found);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 inviteCode이면 fail(404 NotFoundError: resource=inviteCode, key=inviteCode) 반환")
+    void FindProjectByInviteCode_notFound_returns404NotFound() {
+        // Given
+        UUID inviteCode = UUID.randomUUID();
+        when(projectInviteRepository.findById(inviteCode.toString()))
+                .thenReturn(Optional.empty());
+
+        // When
+        Result<ProjectEntity> result = sut.FindProjectByInviteCode(inviteCode);
+
+        // Then
+        assertNotFound(result, "inviteCode", inviteCode);
+    }
+
+    @Test
+    @DisplayName("inviteCode가 만료되었으면 fail(410 GoneError)를 반환한다")
+    void FindProjectByInviteCode_expired_returns410Gone() {
+        // Given
+        UUID inviteCode = UUID.randomUUID();
+
+        var owner = aUser(1L);
+        var project = aProject(100L, owner);
+
+        LocalDateTime expiredAt = LocalDateTime.now().minusMinutes(1);
+        var invite = aInvite(inviteCode, project, expiredAt);
+
+        when(projectInviteRepository.findById(inviteCode.toString()))
+                .thenReturn(Optional.of(invite));
+
+        // When
+        Result<ProjectEntity> result = sut.FindProjectByInviteCode(inviteCode);
+
+        // Then
+        assertGone(result);
+    }
+
+
+    // =========================================================
+    // AddProjectUser(userId, projectId) : MEMBER 등록
+    // =========================================================
+
+    @Test
+    @DisplayName("유저/프로젝트가 존재하면 MEMBER로 ProjectUser를 추가하고 ok() 반환")
+    void AddProjectUser_userAndProjectExist_savesMember_returnsOk() {
+        // Given
+        long userId = 10L;
+        long projectId = 100L;
+
+        var user = aUser(userId);
+        var project = aProject(projectId, aUser(1L));
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(projectUserRepository.save(any(ProjectUserEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        // When
+        Result result = sut.AddProjectUser(userId, projectId);
+
+        // Then
+        assertTrue(result.isSuccess(), () -> "errors=" + result.getErrors());
+        assertTrue(result.getErrors().isEmpty());
+
+        ArgumentCaptor<ProjectUserEntity> captor = ArgumentCaptor.forClass(ProjectUserEntity.class);
+        verify(projectUserRepository, times(1)).save(captor.capture());
+
+        ProjectUserEntity saved = captor.getValue();
+        assertSame(user, saved.getUser());
+        assertSame(project, saved.getProject());
+        assertEquals(ProjectUserRole.MEMBER, saved.getRole());
+        assertEquals(ProjectUserStatus.ACTIVE, saved.getStatus());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 userId이면 fail(404 NotFoundError: resource=userId, key=userId) 반환")
+    void AddProjectUser_userNotFound_returns404NotFound() {
+        // Given
+        long userId = 9999L;
+        long projectId = 100L;
+
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        // When
+        Result result = sut.AddProjectUser(userId, projectId);
+
+        // Then
+        assertNotFound(result, "userId", userId);
+        verify(projectRepository, never()).findById(anyLong());
+        verify(projectUserRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 projectId이면 fail(404 NotFoundError: resource=projectId, key=projectId) 반환")
+    void AddProjectUser_projectNotFound_returns404NotFound() {
+        // Given
+        long userId = 10L;
+        long projectId = 9999L;
+
+        var user = aUser(userId);
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(projectRepository.findById(projectId)).thenReturn(Optional.empty());
+
+        // When
+        Result result = sut.AddProjectUser(userId, projectId);
+
+        // Then
+        assertNotFound(result, "projectId", projectId);
+        verify(projectUserRepository, never()).save(any());
+    }
+
+    // =========================================================
+    // assert / fixture helpers
+    // =========================================================
+
+    private static void assertNotFound(Result<?> result, String resourceName, Object key) {
+        assertTrue(result.isFailure(), () -> "value=" + result.getValue() + ", errors=" + result.getErrors());
+        assertFalse(result.getErrors().isEmpty());
+        assertTrue(result.getValue().isEmpty());
+
+        var err = result.getErrors().get(0);
+        assertEquals(404, err.getCode());
+        assertNotNull(err.getMessage());
+
+        Map<String, Object> meta = err.getMetadata();
+        assertNotNull(meta);
+        assertEquals(resourceName, String.valueOf(meta.get("resource")));
+        assertEquals(String.valueOf(key), String.valueOf(meta.get("key")));
+    }
+
+    // id가 String(UUID) or UUID 둘 다 대응
+    private static UUID toUuid(Object rawId) {
+        if (rawId == null) throw new IllegalStateException("invite.id is null");
+        if (rawId instanceof UUID u) return u;
+        return UUID.fromString(rawId.toString());
+    }
+
+    private static Object readField(Object target, String fieldName) {
+        try {
+            Field f = target.getClass().getDeclaredField(fieldName);
+            f.setAccessible(true);
+            return f.get(target);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
     // -----------------------
     // fixture helpers
     // -----------------------
@@ -384,6 +683,61 @@ class ProjectServiceImplTest {
             var f = ProjectEntity.class.getDeclaredField("id");
             f.setAccessible(true);
             return (Long) f.get(project);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }    private ProjectUserEntity aProjectUser(UserEntity user, ProjectEntity project, ProjectUserRole role) {
+        ProjectUserEntity pu = newInstance(ProjectUserEntity.class);
+        setField(pu, "user", user);
+        setField(pu, "project", project);
+        setField(pu, "role", role);
+        setField(pu, "status", ProjectUserStatus.ACTIVE);
+        setField(pu, "joinedAt", LocalDateTime.now());
+        return pu;
+    }
+
+    private ProjectInviteEntity aInvite(UUID code, ProjectEntity project, LocalDateTime expiresAt) {
+        ProjectInviteEntity inv = newInstance(ProjectInviteEntity.class);
+
+        // id가 String(UUID)일 가능성이 높음(CHAR(36))
+        try {
+            setField(inv, "id", code.toString());
+        } catch (Exception e) {
+            setField(inv, "id", code);
+        }
+
+        setField(inv, "project", project);
+        setField(inv, "expiresAt", expiresAt);
+        return inv;
+    }
+
+    private static void assertGone(Result<?> result) {
+        assertTrue(result.isFailure(), () -> "value=" + result.getValue() + ", errors=" + result.getErrors());
+        assertFalse(result.getErrors().isEmpty());
+        assertTrue(result.getValue().isEmpty());
+
+        var err = result.getErrors().get(0);
+        assertEquals(410, err.getCode()); // ✅ GoneError
+        assertNotNull(err.getMessage());
+        assertFalse(err.getMessage().isBlank());
+    }
+
+
+    private static <T> T newInstance(Class<T> clazz) {
+        try {
+            var ctor = clazz.getDeclaredConstructor();
+            ctor.setAccessible(true);
+            return ctor.newInstance();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void setField(Object target, String fieldName, Object value) {
+        try {
+            Field f = target.getClass().getDeclaredField(fieldName);
+            f.setAccessible(true);
+            f.set(target, value);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

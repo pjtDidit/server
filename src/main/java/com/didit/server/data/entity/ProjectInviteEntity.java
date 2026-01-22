@@ -37,6 +37,15 @@ public class ProjectInviteEntity {
     )
     private ProjectEntity project;
 
+    // users.id (FK)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(
+            name = "user_id",
+            nullable = false,
+            foreignKey = @ForeignKey(name = "fk_project_invites_user_id")
+    )
+    private UserEntity user;
+
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
 

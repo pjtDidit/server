@@ -4,6 +4,7 @@ import com.didit.server.data.entity.ProjectEntity;
 import com.didit.server.service.command.AddProjectCommand;
 import com.didit.server.share.result.Result;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -67,6 +68,7 @@ public interface ProjectService {
      * Input:
      *  - long userId
      *  - long projectId
+     *  - LocalDateTime expiresAt
      * Success:
      *  - ok(UUID)
      * Auth/Permission:
@@ -78,7 +80,7 @@ public interface ProjectService {
      *  - <404> NotFoundError: 찾을수 없는 projectId - resourceName = projectId
      *  - <403> ForbiddenError: 중복되는 repoFullName
      */
-    Result<UUID> AddInviteCode(long userId, long projectId);
+    Result<UUID> AddInviteCode(long userId, long projectId, LocalDateTime expiresAt);
 
     /**
      * Action: 초대 코드(UUID)를 통해 프로젝트 정보 얻기
@@ -92,6 +94,7 @@ public interface ProjectService {
      *  - (추가)
      * Failures:  // ★ 블랙박스 테스트의 핵심
      *  - <404> NotFoundError: 찾을수 없는 inviteCode - resourceName = inviteCode
+     *  - <410> GoneError: expire된 inviteCode
      */
     Result<ProjectEntity> FindProjectByInviteCode(UUID inviteCode);
 
