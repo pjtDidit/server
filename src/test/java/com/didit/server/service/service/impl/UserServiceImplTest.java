@@ -120,4 +120,6 @@ class UserServiceImplTest {
         assertThat(existingUser.getGithubLogin()).isEqualTo(newLogin);
         verify(userRepository).save(existingUser);
     }
+
+
 }

@@ -1,6 +1,7 @@
 package com.didit.server.service.service;
 
 import com.didit.server.data.entity.ProjectEntity;
+import com.didit.server.data.entity.UserEntity;
 import com.didit.server.service.command.AddProjectCommand;
 import com.didit.server.share.result.Result;
 
@@ -115,4 +116,19 @@ public interface ProjectService {
      *  - <404>: 찾을수 없는 projectId
      */
     Result AddProjectUser(long userId, long projectId);
+
+    /**
+     * Action: Project에 속해있는 유저들을 반환함
+     * Input:
+     *  - long projectId
+     * Success:
+     *  - ok(List<UserEntity>)
+     * Auth/Permission:
+     *  - (누구나)
+     * Persistence:
+     *  - (찾기)
+     * Failures:  // ★ 블랙박스 테스트의 핵심
+     *  - <404>: 찾을수 없는 projectId
+     */
+    Result<List<UserEntity>> FindUsersInProject(long projectId);
 }

@@ -3,6 +3,7 @@ package com.didit.server.service.service.impl;
 import com.didit.server.data.entity.ProjectEntity;
 import com.didit.server.data.entity.ProjectInviteEntity;
 import com.didit.server.data.entity.ProjectUserEntity;
+import com.didit.server.data.entity.UserEntity;
 import com.didit.server.data.entity.enums.ProjectUserRole;
 import com.didit.server.data.entity.enums.ProjectUserStatus;
 import com.didit.server.data.repository.ProjectInviteRepository;
@@ -160,5 +161,19 @@ public class ProjectServiceImpl implements ProjectService {
         _ProjectUserRepository.save(projectUserEntity);
 
         return Result.ok();
+    }
+
+    @Override
+    public Result<List<UserEntity>> FindUsersInProject(long projectId) {
+        var project = _ProjectRepository.findById(projectId);
+        if(project.isEmpty()){
+            return Result.fail(new NotFoundError("projectId", projectId));
+        }
+
+        var list = _ProjectUserRepository.findAllByProject_Id(projectId);
+
+        var users = list.stream().map(ProjectUserEntity::getUser).toList();
+
+        return Result.ok(users);
     }
 }
