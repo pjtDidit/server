@@ -112,7 +112,7 @@ public class ProjectController {
 
     @PostMapping("invites/{inviteCode}")
     public ResponseEntity<?> AddProjectUserByInviteCode(@AuthenticationPrincipal CustomOAuth2User user,
-                                                        @RequestParam("inviteCode") String inviteCode){
+                                                        @PathVariable String inviteCode){
         UUID uuid;
         try{
             uuid = UUID.fromString(inviteCode);
