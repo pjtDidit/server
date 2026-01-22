@@ -83,7 +83,7 @@ public class ProjectController {
 
     //[Feature][Join] 초대 코드로 방 참여 (POST /api/v1/rooms/projects/{inviteCode})
     @GetMapping("/invites/{inviteCode}")
-    public ResponseEntity<?> GetProjectByInviteCode(@RequestParam("inviteCode") String inviteCode){
+    public ResponseEntity<?> GetProjectByInviteCode(@PathVariable String inviteCode){
         UUID uuid;
         try{
             uuid = UUID.fromString(inviteCode);
