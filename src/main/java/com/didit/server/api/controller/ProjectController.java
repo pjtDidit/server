@@ -78,7 +78,7 @@ public class ProjectController {
             return new ResponseEntity<>(err, err.getStatusCode());
         }
 
-        return ResponseEntity.ok(addResult.getValue().toString());
+        return ResponseEntity.ok(addResult.getValue());
     }
 
     //[Feature][Join] 초대 코드로 방 참여 (POST /api/v1/rooms/projects/{inviteCode})
