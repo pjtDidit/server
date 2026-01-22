@@ -2,21 +2,18 @@ package com.didit.server.api.controller;
 
 import com.didit.server.api.request.AddProjectInviteRequest;
 import com.didit.server.api.request.AddProjectRequest;
-import com.didit.server.api.response.ErrorResponse;
 import com.didit.server.api.response.FindProjectResponse;
-import com.didit.server.api.response.FindProjectsResponse;
+import com.didit.server.api.response.UserResponse;
 import com.didit.server.api.security.CustomOAuth2User;
 import com.didit.server.service.command.AddProjectCommand;
 import com.didit.server.service.service.ProjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -121,5 +118,27 @@ public class ProjectController {
         return ResponseEntity.ok().build();
     }
 
+    //[Feature][Participants] 방 참여자 목록 조회 (GET /api/v1/projects/{id}/participants) #8
+    @GetMapping("/{projectId}/participants")
+    public ResponseEntity<?> findUsersInProject(@PathVariable Long projectId){
+        var findResult = _ProjectService.FindUsersInProject(projectId);
+        if(findResult.isFailure()){
+            var err = findResult.getSingleErrorOrThrow().getResponse();
+            return new ResponseEntity<>(err, err.getStatusCode());
+        }
+
+        var entities = findResult.getOrThrow();
+        var response = entities.stream().map(x -> UserResponse.builder()
+                .id(x.getId())
+                .githubId(x.getGithubId())
+                .githubLogin(x.getGithubLogin())
+                .name(x.getName())
+                .avatarUrl(x.getAvatarUrl())
+                .createdAt(x.getCreatedAt())
+                .lastLoginAt(x.getLastLoginAt())
+                .build()).toList();
+
+        return ResponseEntity.ok(response);
+    }
 
 }
