@@ -71,7 +71,7 @@ public class ProjectController {
     public ResponseEntity<?> AddInvite(@AuthenticationPrincipal CustomOAuth2User user,
                                        @RequestBody @Valid AddProjectInviteRequest request){
         var userId = user.getId();
-        var expire = request.expireDate() == null ? LocalDateTime.MAX : request.expireDate();
+        var expire = request.expireDate() == null ? LocalDateTime.now().plusYears(1000) : request.expireDate();
         var addResult = _ProjectService.AddInviteCode(userId, request.projectId(), expire);
         if(addResult.isFailure()){
             var err = addResult.getSingleErrorOrThrow().getResponse();
