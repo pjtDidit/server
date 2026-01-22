@@ -610,22 +610,18 @@ class ProjectServiceImplTest {
     }
 
     @Test
-    @DisplayName("프로젝트가 존재하면 해당 프로젝트의 유저 목록을 ok(List<UserEntity>)로 반환한다")
+    @DisplayName("프로젝트가 존재하면 유저 목록을 ok(List<UserEntity>)로 반환한다")
     void FindUsersInProject_projectExists_returnsOkUsers() {
         // Given
         long projectId = 100L;
 
-        var owner = aUser(1L);
-        var project = aProject(projectId, owner);
+        var project = aProject(projectId, aUser(1L));
 
         var u1 = aUser(10L);
         var u2 = aUser(11L);
 
-        var pu1 = aProjectUser(u1, project, ProjectUserRole.MEMBER);
-        var pu2 = aProjectUser(u2, project, ProjectUserRole.ADMIN);
-
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
-        when(projectUserRepository.findAllByProject_Id(projectId)).thenReturn(List.of(pu1, pu2));
+        when(projectUserRepository.findUsersByProjectId(projectId)).thenReturn(List.of(u1, u2));
 
         // When
         Result<List<UserEntity>> result = sut.FindUsersInProject(projectId);
@@ -636,11 +632,11 @@ class ProjectServiceImplTest {
 
         List<UserEntity> users = result.getValue().orElseThrow();
         assertEquals(2, users.size());
-        assertTrue(users.contains(u1));
-        assertTrue(users.contains(u2));
+        assertSame(u1, users.get(0));
+        assertSame(u2, users.get(1));
 
         verify(projectRepository, times(1)).findById(projectId);
-        verify(projectUserRepository, times(1)).findAllByProject_Id(projectId);
+        verify(projectUserRepository, times(1)).findUsersByProjectId(projectId);
     }
 
     @Test
@@ -652,7 +648,7 @@ class ProjectServiceImplTest {
         var project = aProject(projectId, aUser(1L));
 
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
-        when(projectUserRepository.findAllByProject_Id(projectId)).thenReturn(List.of());
+        when(projectUserRepository.findUsersByProjectId(projectId)).thenReturn(List.of());
 
         // When
         Result<List<UserEntity>> result = sut.FindUsersInProject(projectId);
@@ -665,7 +661,7 @@ class ProjectServiceImplTest {
         assertTrue(users.isEmpty());
 
         verify(projectRepository, times(1)).findById(projectId);
-        verify(projectUserRepository, times(1)).findAllByProject_Id(projectId);
+        verify(projectUserRepository, times(1)).findUsersByProjectId(projectId);
     }
 
     @Test
@@ -679,7 +675,7 @@ class ProjectServiceImplTest {
         // When
         Result<List<UserEntity>> result = sut.FindUsersInProject(projectId);
 
-        // Then (NotFoundError 계약: code=404, metadata(resource/key))
+        // Then
         assertTrue(result.isFailure(), () -> "value=" + result.getValue() + ", errors=" + result.getErrors());
         assertFalse(result.getErrors().isEmpty());
         assertTrue(result.getValue().isEmpty());
@@ -693,9 +689,8 @@ class ProjectServiceImplTest {
         assertEquals(String.valueOf(projectId), String.valueOf(meta.get("key")));
 
         verify(projectRepository, times(1)).findById(projectId);
-        verify(projectUserRepository, never()).findAllByProject_Id(anyLong());
+        verify(projectUserRepository, never()).findUsersByProjectId(anyLong());
     }
-
     // =========================================================
     // assert / fixture helpers
     // =========================================================

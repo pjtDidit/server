@@ -170,10 +170,8 @@ public class ProjectServiceImpl implements ProjectService {
             return Result.fail(new NotFoundError("projectId", projectId));
         }
 
-        var list = _ProjectUserRepository.findAllByProject_Id(projectId);
+        var list = _ProjectUserRepository.findUsersByProjectId(projectId);
 
-        var users = list.stream().map(ProjectUserEntity::getUser).toList();
-
-        return Result.ok(users);
+        return Result.ok(list);
     }
 }
