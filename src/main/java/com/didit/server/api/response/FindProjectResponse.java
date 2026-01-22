@@ -1,5 +1,6 @@
 package com.didit.server.api.response;
 
+import com.didit.server.data.entity.ProjectEntity;
 import com.didit.server.data.entity.UserEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -19,7 +20,7 @@ import java.time.LocalDateTime;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class FindProjectsResponse {
+public class FindProjectResponse {
     private Long id;
     private String name;
     private Long ownerId;
@@ -28,4 +29,17 @@ public class FindProjectsResponse {
     private String thumbnailUrl;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    public static FindProjectResponse fromEntity(ProjectEntity entity){
+        return builder()
+                .id(entity.getId())
+                .name(entity.getName())
+                .ownerId(entity.getOwner().getId())
+                .repoId(entity.getRepoId())
+                .repoFullName(entity.getRepoFullName())
+                .thumbnailUrl(entity.getThumbnailUrl())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
+    }
 }
