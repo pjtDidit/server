@@ -3,6 +3,7 @@ package com.didit.server.api.controller;
 import com.didit.server.api.request.AddProjectInviteRequest;
 import com.didit.server.api.request.AddProjectRequest;
 import com.didit.server.api.response.ErrorResponse;
+import com.didit.server.api.response.FindProjectResponse;
 import com.didit.server.api.response.FindProjectsResponse;
 import com.didit.server.api.security.CustomOAuth2User;
 import com.didit.server.service.command.AddProjectCommand;
@@ -36,16 +37,7 @@ public class ProjectController {
         }
 
         var entities = findResult.getOrThrow();
-        var responses = entities.stream().map(x -> FindProjectsResponse.builder()
-                .id(x.getId())
-                .name(x.getName())
-                .ownerId(x.getOwner().getId())
-                .repoId(x.getRepoId())
-                .repoFullName(x.getRepoFullName())
-                .thumbnailUrl(x.getThumbnailUrl())
-                .createdAt(x.getCreatedAt())
-                .updatedAt(x.getUpdatedAt())
-                .build())
+        var responses = entities.stream().map(FindProjectResponse::fromEntity)
                 .toList();
 
         return ResponseEntity.ok(responses);
@@ -97,17 +89,7 @@ public class ProjectController {
             return new ResponseEntity<>(err, err.getStatusCode());
         }
         var entity = findResult.getValue().get();
-        var response = FindProjectsResponse.builder()
-                .id(entity.getId())
-                .name(entity.getName())
-                .ownerId(entity.getOwner().getId())
-                .repoId(entity.getRepoId())
-                .repoFullName(entity.getRepoFullName())
-                .thumbnailUrl(entity.getThumbnailUrl())
-                .createdAt(entity.getCreatedAt())
-                .updatedAt(entity.getUpdatedAt())
-                .build();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(FindProjectResponse.fromEntity(entity));
     }
 
     @PostMapping("invites/{inviteCode}")
@@ -138,4 +120,6 @@ public class ProjectController {
 
         return ResponseEntity.ok().build();
     }
+
+
 }
